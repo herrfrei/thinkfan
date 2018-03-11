@@ -110,7 +110,7 @@ TpFanDriver::TpFanDriver(const std::string &path)
 }
 
 
-TpFanDriver::~TpFanDriver()
+TpFanDriver::~TpFanDriver() noexcept(false)
 {
 	std::ofstream f(path_);
 	if (!(f.is_open() && f.good()))
@@ -180,7 +180,7 @@ HwmonFanDriver::HwmonFanDriver(const std::string &path)
 }
 
 
-HwmonFanDriver::~HwmonFanDriver()
+HwmonFanDriver::~HwmonFanDriver() noexcept(false)
 {
 	std::ofstream f(path_ + "_enable");
 	if (!(f.is_open() && f.good()))
@@ -227,7 +227,8 @@ void HwmonFanDriver::set_speed(const Level *level)
 SensorDriver::SensorDriver(std::string path, std::vector<int> correction)
 : path_(path),
   correction_(correction),
-  num_temps_(0)
+  num_temps_(0),
+  optional_(false)
 {
 	std::ifstream f(path_);
 	if (!(f.is_open() && f.good()))
@@ -277,6 +278,15 @@ void SensorDriver::check_correction_length()
 		log(TF_WRN) << MSG_CONF_CORRECTION_LEN(path_, correction_.size(), num_temps()) << flush;
 }
 
+
+void SensorDriver::set_optional(bool o)
+{ optional_ = o; }
+
+bool SensorDriver::optional() const
+{ return optional_; }
+
+const string &SensorDriver::path() const
+{ return path_; }
 
 /*----------------------------------------------------------------------------
 | HwmonSensorDriver: A driver for sensors provided by other kernel drivers,  |
@@ -491,7 +501,7 @@ NvmlSensorDriver::NvmlSensorDriver(string bus_id, std::vector<int> correction)
 }
 
 
-NvmlSensorDriver::~NvmlSensorDriver()
+NvmlSensorDriver::~NvmlSensorDriver() noexcept(false)
 {
 	nvmlReturn_t ret;
 	if ((ret = dl_nvmlShutdown()))
@@ -505,7 +515,7 @@ void NvmlSensorDriver::read_temps() const
 	unsigned int tmp;
 	if ((ret = dl_nvmlDeviceGetTemperature(device_, NVML_TEMPERATURE_GPU, &tmp)))
 		throw SystemError(MSG_T_GET(path_) + "Error code (cf. nvml.h): " + std::to_string(ret));
-	temp_state.add_temp(tmp);
+	temp_state.add_temp(int(tmp));
 }
 #endif /* USE_NVML */
 
