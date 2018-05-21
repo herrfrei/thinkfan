@@ -85,9 +85,9 @@ static int file_filter(const struct dirent *entry, const string &pfx, const stri
 	if (entry->d_type == DT_REG) {
 		int idx = get_index(entry->d_name, pfx, sfx);
 		if (idx >= 0 && std::find(filter_indices.begin(),
-						filter_indices.end(),
-						idx) != filter_indices.end())
-				return 1;
+		                          filter_indices.end(),
+		                          idx) != filter_indices.end())
+			return 1;
 	}
 	return 0;
 }
@@ -102,7 +102,7 @@ static int filter_pwms(const struct dirent *entry)
 static int filter_hwmon_dirs(const struct dirent *entry)
 {
 	if ((entry->d_type & (DT_DIR | DT_LNK)) && (
-				!strncmp("hwmon", entry->d_name, 5) || !strcmp("device", entry->d_name)))
+	            !strncmp("hwmon", entry->d_name, 5) || !strcmp("device", entry->d_name)))
 		return 1;
 	return 0;
 }
@@ -120,9 +120,8 @@ int scandir< HwmonFanDriver > (const string &path, struct dirent ***entries)
 { return ::scandir(path.c_str(), entries, filter_pwms, alphasort); }
 
 
-
-template<class T>
-static vector<wtf_ptr<T>> find_hwmons(string path, const vector<int> &indices)
+template<class T, class... ExtraArgTs>
+static vector<wtf_ptr<T>> find_hwmons(string path, const vector<int> &indices, ExtraArgTs... extra_args)
 {
 	vector<wtf_ptr<T>> rv;
 
@@ -148,7 +147,7 @@ static vector<wtf_ptr<T>> find_hwmons(string path, const vector<int> &indices)
 
 				auto it = std::find(filter_indices.begin(), filter_indices.end(), temp_idx);
 
-				rv.push_back(make_wtf<T>(path + "/" + entries[i]->d_name));
+				rv.push_back(make_wtf<T>(path + "/" + entries[i]->d_name, extra_args...));
 				filter_indices.erase(it);
 				// stop crawling at this level
 				depth = std::numeric_limits<unsigned char>::max();
@@ -194,28 +193,27 @@ struct convert<vector<wtf_ptr<HwmonSensorDriver>>> {
 		if (node[kw_correction])
 			correction = node[kw_correction].as<vector<int>>();
 
+		bool optional = node[kw_optional] ? node[kw_optional].as<bool>() : false;
+
 		if (node[kw_indices]) {
 			vector<wtf_ptr<HwmonSensorDriver>> hwmons = find_hwmons<HwmonSensorDriver>(
-						path, node[kw_indices].as<vector<int>>());
+			            path, node[kw_indices].as<vector<int>>(), optional);
 			if (!correction.empty()) {
 				if (correction.size() != hwmons.size())
 					throw YamlError(
-							get_mark_compat(node[kw_indices]),
-							MSG_CONF_CORRECTION_LEN(path, correction.size(), hwmons.size())
-					);
+				            get_mark_compat(node[kw_indices]),
+				            MSG_CONF_CORRECTION_LEN(path, correction.size(), hwmons.size()));
 				auto it = correction.begin();
 				std::for_each(hwmons.begin(), hwmons.end(), [&] (wtf_ptr<HwmonSensorDriver> &sensor) {
 					sensor->set_correction(vector<int>(1, *it++));
 				});
 			}
 			for (wtf_ptr<HwmonSensorDriver> &h : hwmons) {
-				if (node[kw_optional])
-					h->set_optional(node[kw_optional].as<bool>());
 				sensors.push_back(std::move(h));
 			}
 		}
 		else {
-			wtf_ptr<HwmonSensorDriver> h = make_wtf<HwmonSensorDriver>(path, correction);
+			wtf_ptr<HwmonSensorDriver> h = make_wtf<HwmonSensorDriver>(path, optional, correction);
 			sensors.push_back(h);
 		}
 
@@ -235,17 +233,17 @@ struct convert<wtf_ptr<TpSensorDriver>> {
 		if (node[kw_correction])
 			correction = node[kw_correction].as<vector<int>>();
 
+		bool optional = node[kw_optional] ? node[kw_optional].as<bool>() : false;
+
 		if (node[kw_indices]) {
 			sensor = make_wtf<TpSensorDriver>(
-						node[kw_tpacpi].as<string>(),
-						node[kw_indices].as<vector<unsigned int>>(),
-						correction);
+			            node[kw_tpacpi].as<string>(),
+			            optional,
+			            node[kw_indices].as<vector<unsigned int>>(),
+			            correction);
 		}
 		else
-			sensor = make_wtf<TpSensorDriver>(node[kw_tpacpi].as<string>(), correction);
-
-		if (node[kw_optional])
-			sensor->set_optional(node[kw_optional].as<bool>());
+			sensor = make_wtf<TpSensorDriver>(node[kw_tpacpi].as<string>(), optional, correction);
 
 		return true;
 	}
@@ -264,7 +262,9 @@ struct convert<wtf_ptr<NvmlSensorDriver>> {
 		if (node[kw_correction])
 			correction = node[kw_correction].as<vector<int>>();
 
-		sensor = make_wtf<NvmlSensorDriver>(node[kw_nvidia].as<string>(), correction);
+		bool optional = node[kw_optional] ? node[kw_optional].as<bool>() : false;
+
+		sensor = make_wtf<NvmlSensorDriver>(node[kw_nvidia].as<string>(), optional, correction);
 		if (node[kw_optional])
 			sensor->set_optional(node[kw_optional].as<bool>());
 
