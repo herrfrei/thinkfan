@@ -302,7 +302,7 @@ TemperatureState::TemperatureState(unsigned int num_temps)
   temp_(temps_.begin()),
   bias_(biases_.begin()),
   biased_temp_(biased_temps_.begin()),
-  tmax(0)
+  tmax(biased_temps_.begin())
 {}
 
 
@@ -338,8 +338,11 @@ void TemperatureState::add_temp(int t)
 			// Slowly return to normal sleeptime
 			if (unlikely(tmp_sleeptime < sleeptime)) tmp_sleeptime++;
 			// slowly reduce the bias_
+#pragma GCC push
+#pragma GCC diagnostic ignored "-Wfloat-equal" // bias is set to 0 explicitly
 			if (unlikely(*bias_ != 0)) {
-				if (std::abs(*bias_) < 0.5)
+#pragma GCC pop
+				if (std::abs(*bias_) < 0.5f)
 					*bias_ = 0;
 				else
 					*bias_ -= 1 + *bias_/5 ;
@@ -347,7 +350,7 @@ void TemperatureState::add_temp(int t)
 		}
 	}
 
-	*biased_temp_ = *temp_ + *bias_;
+	*biased_temp_ = *temp_ + int(*bias_);
 
 	if (*biased_temp_ > *tmax)
 		tmax = biased_temp_;
@@ -401,14 +404,14 @@ int main(int argc, char **argv) {
 	memset(&handler, 0, sizeof(handler));
 	handler.sa_handler = sig_handler;
 
-	if (sigaction(SIGHUP, &handler, NULL)
-	 || sigaction(SIGINT, &handler, NULL)
-	 || sigaction(SIGTERM, &handler, NULL)
-	 || sigaction(SIGUSR1, &handler, NULL)
+	if (sigaction(SIGHUP, &handler, nullptr)
+	 || sigaction(SIGINT, &handler, nullptr)
+	 || sigaction(SIGTERM, &handler, nullptr)
+	 || sigaction(SIGUSR1, &handler, nullptr)
 #if not defined(DISABLE_BUGGER)
-	 || sigaction(SIGSEGV, &handler, NULL)
+	 || sigaction(SIGSEGV, &handler, nullptr)
 #endif
-	 || sigaction(SIGUSR2, &handler, NULL)) {
+	 || sigaction(SIGUSR2, &handler, nullptr)) {
 		string msg = strerror(errno);
 		log(TF_ERR) << "sigaction: " << msg;
 		return 1;
